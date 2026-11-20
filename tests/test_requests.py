@@ -815,6 +815,39 @@ class TestRequests:
             r = requests.get(url, auth=auth)
             assert '"auth"' in r.request.headers["Authorization"]
 
+    @pytest.mark.parametrize(
+        "qop",
+        [
+            "auth",
+            "auth-int,auth",
+            "auth-int, auth",
+            "auth, auth-int",
+            "auth , auth-int",
+            "auth-int,  auth",
+        ],
+    )
+    def test_digest_auth_qop_with_whitespace(self, qop):
+        auth = HTTPDigestAuth("user", "pass")
+        auth.init_per_thread_state()
+        auth._thread_local.chal = {
+            "realm": "realm@host.com",
+            "nonce": "dcd98b7102dd2f0e8b11d0f600bfb0c093",
+            "qop": qop,
+        }
+        header = auth.build_digest_header("GET", "https://example.com/")
+        assert header is not None
+        assert 'qop="auth"' in header
+
+    def test_digest_auth_unsupported_qop(self):
+        auth = HTTPDigestAuth("user", "pass")
+        auth.init_per_thread_state()
+        auth._thread_local.chal = {
+            "realm": "realm@host.com",
+            "nonce": "dcd98b7102dd2f0e8b11d0f600bfb0c093",
+            "qop": "auth-int",
+        }
+        assert auth.build_digest_header("GET", "https://example.com/") is None
+
     def test_POSTBIN_GET_POST_FILES(self, httpbin):
         url = httpbin("post")
         requests.post(url).raise_for_status()
